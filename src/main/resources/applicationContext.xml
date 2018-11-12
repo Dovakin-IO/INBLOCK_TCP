@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.2.xsd
+    http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.2.xsd
+    http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-3.2.xsd">
+
+    <context:property-placeholder location="classpath:config.properties"/>
+
+    <bean id="tcpServer" class= "com.bibao.NettyTCPServer" destroy-method="stopServer">
+        <constructor-arg ref="tcpConfig" />
+        <constructor-arg ref="kvcache" />
+        <constructor-arg ref="tickerInitializer" />
+    </bean>
+
+    <bean id="tickerInitializer" class="com.bibao.handler.TickerInitializer" />
+
+    <bean id="tcpConfig" class="com.bibao.server.NettyConfig">
+        <property name="channelOptions" ref="tcpChannelOptions"/>
+        <property name="bossGroup" ref="bossGroup"/>
+        <property name="workerGroup" ref="workerGroup"/>
+        <property name="portNumber" >
+            <value>${tcp.PORT}</value>
+        </property>
+    </bean>
+
+    <util:map id="tcpChannelOptions" map-class="java.util.HashMap">
+        <entry>
+            <key><util:constant static-field="io.netty.channel.ChannelOption.SO_KEEPALIVE"/></key>
+            <value type="java.lang.Boolean">${tcp.SO_KEEPALIVE}</value>
+        </entry>
+        <entry>
+            <key><util:constant static-field="io.netty.channel.ChannelOption.SO_BACKLOG"/></key>
+            <value type="java.lang.Integer">${tcp.SO_BACKLOG}</value>
+        </entry>
+    </util:map>
+
+    <bean id="bossGroup" class="io.netty.channel.nio.NioEventLoopGroup" destroy-method="shutdownGracefully">
+        <constructor-arg type="int" index="0" >
+            <value>${tcp.BOSSGROUP_THREAD_COUNT}</value>
+        </constructor-arg>
+        <constructor-arg index="1" ref="bossThreadFactory" />
+    </bean>
+
+    <bean id="workerGroup" class="io.netty.channel.nio.NioEventLoopGroup" destroy-method="shutdownGracefully">
+        <constructor-arg type="int" index="0"
+                         >
+            <value>
+                ${tcp.WORKERGROUP_THREAD_COUNT}
+            </value>
+        </constructor-arg>
+        <constructor-arg index="1" ref="workerThreadFactory" />
+    </bean>
+
+    <bean id="bossThreadFactory" class="com.bibao.factory.NamedThreadFactory">
+        <constructor-arg type="java.lang.String" value="Server-Boss" />
+    </bean>
+
+    <bean id="workerThreadFactory" class="com.bibao.factory.NamedThreadFactory">
+        <constructor-arg type="java.lang.String" index="0" value="Server-Worker" />
+    </bean>
+
+    <!-- Jedis配置-->
+    <bean id="jedisPool" class="redis.clients.jedis.JedisPool">
+        <constructor-arg ref="jedisPoolConfig" />
+        <constructor-arg type="java.lang.String" >
+            <value>${jedis.host}</value>
+        </constructor-arg>
+        <constructor-arg type="int" >
+            <value>${jedis.port}</value>
+        </constructor-arg>
+        <constructor-arg type="int" >
+            <value>${jedis.timeout}</value>
+        </constructor-arg>
+        <constructor-arg type="java.lang.String">
+            <value>${jedis.auth}</value>
+        </constructor-arg>
+    </bean>
+
+    <bean id="jedisPoolConfig" class="redis.clients.jedis.JedisPoolConfig">
+        <property name="maxTotal" >
+            <value>${jedis.maxTotal}</value>
+        </property>
+        <property name="maxIdle" >
+            <value>${jedis.maxIdle}</value>
+        </property>
+        <property name="maxWaitMillis">
+            <value>${jedis.maxWaitMillis}</value>
+        </property>
+    </bean>
+
+    <bean id="kvcache" class="com.bibao.cache.KVCache">
+        <constructor-arg ref="redisCache" />
+        <constructor-arg ref="cache_keys" />
+    </bean>
+
+    <bean id="redisCache" class="java.util.concurrent.ConcurrentHashMap" />
+
+    <util:list id="cache_keys" list-class="java.util.ArrayList">
+        <value>Ticker:binance</value>
+        <value>Ticker:bigOne</value>
+        <value>Ticker:gateIO</value>
+        <value>Ticker:OKEX</value>
+    </util:list>
+
+    <bean id="redisTask" class="com.bibao.server.task.RedisTask">
+        <constructor-arg index="0" type="int" value="${jedistask.index}" />
+        <constructor-arg index="1" type="int" value="${jedistask.pipeline.pageSize}" />
+        <constructor-arg index="2" type="int" value="${jedistask.pull_idle}" />
+    </bean>
+</beans>
